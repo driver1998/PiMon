@@ -68,10 +68,10 @@ HICON DrawTrayIcon(HWND hwnd, COLORREF bkColor, COLORREF textColor, double value
 	StringCbPrintfW(str, sizeof(str), format, value);
 
 	// Draw text
-	DrawTextW(memDC, str, wcslen(str), &r, DT_SINGLELINE | DT_CALCRECT);
+	DrawTextW(memDC, str, (int)wcslen(str), &r, DT_SINGLELINE | DT_CALCRECT);
 	r.left = (size - r.right) / 2; r.right += r.left;
 	r.top = (size - r.bottom) / 2; r.bottom += r.top;
-	DrawTextW(memDC, str, wcslen(str), &r, DT_SINGLELINE);
+	DrawTextW(memDC, str, (int)wcslen(str), &r, DT_SINGLELINE);
 
 	// Create Icon
 	HBITMAP hmask = CreateBitmap(size, size, 1, 1, NULL);
