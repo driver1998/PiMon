@@ -3,12 +3,15 @@
 
 #define IDI_MAIN 10
 
-#define IDM_TRAY       3000
-#define IDM_ALWAYS_TOP 3001
-#define IDM_ABOUT      3002
-#define IDM_EXIT       3003
+#define IDM_TRAY          3000
+#define IDM_ALWAYS_TOP    3001
+#define IDM_ABOUT         3002
+#define IDM_HIDE_MINIMIZE 3003
+#define IDM_EXIT          3004
 
 
-#define IDM_SYS_ABOUT      4001
-#define IDM_SYS_ALWAYS_TOP 4002
+#define IDM_SYS_ABOUT         4001
+#define IDM_SYS_ALWAYS_TOP    4002
+#define IDM_SYS_HIDE_MINIMIZE 4003
+
 #endif

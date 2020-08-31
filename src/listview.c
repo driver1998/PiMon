@@ -94,7 +94,7 @@ int LVAddItem(HWND hwnd, int pos, const wchar_t* text) {
 	if (str == NULL) return index;
 	wcscpy_s(str, len, text);
 
-	LVITEM item = { 0 };
+	LVITEMW item = { 0 };
 	item.mask = LVIF_TEXT;
 	item.iItem = pos;
 	item.pszText = str;

@@ -16,13 +16,17 @@
 
 HWND hwndListView;
 BOOL alwaysOnTop = FALSE;
+BOOL hideOnMinimize = FALSE;
 
 #define WNDCLASS_NAME L"HWMON_WNDCLASS"
 #define TRAYICON_ID 3683
 #define TIMER_ID    4074
 
+#define CONFIG_ALWAYS_ON_TOP    L"AlwaysOnTop"
+#define CONFIG_HIDE_ON_MINIMIZE L"HideOnMinimize"
+
 #define WM_TRAYICON (WM_USER + 101)
-UINT WM_TASKBAR_RESTART;
+UINT WM_TASKBAR_CREATE;
 
 typedef struct itemInfo {
 	const wchar_t* name;
@@ -69,26 +73,43 @@ const wchar_t* clk_units[] = { L"Hz", L"MHz", L"GHz" };
 
 void About(HWND hwnd) {
 	MessageBoxW(hwnd,
-		L"PiMon Version " PIMON_VERSIONW L"\n"
+		PIMON_APPNAME L" Version " PIMON_VERSION L"\n"
 		L"Copyright (c) driver1998\n\n"
 		L"GitHub: https://github.com/driver1998/PiMon \n"
 		L"Release under the MIT License",
 		L"About", MB_ICONINFORMATION | MB_OK);
 }
 
-void AlwaysOnTop(HWND hwnd) {
-	alwaysOnTop = !alwaysOnTop;
+void AlwaysOnTop(HWND hwnd, BOOL value) {
+	alwaysOnTop = value;
+	ConfigSetInt(PIMON_APPNAME, CONFIG_ALWAYS_ON_TOP, alwaysOnTop);
+
 	HMENU sysMenu = GetSystemMenu(hwnd, FALSE);
 	CheckMenuItem(sysMenu, IDM_SYS_ALWAYS_TOP, alwaysOnTop ? MF_CHECKED : MF_UNCHECKED);
 
 	SetWindowPos(hwnd, alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
 }
 
+void HideOnMinimize(HWND hwnd, BOOL value) {
+	hideOnMinimize = value;
+	ConfigSetInt(PIMON_APPNAME, CONFIG_HIDE_ON_MINIMIZE, hideOnMinimize);
+	
+	HMENU sysMenu = GetSystemMenu(hwnd, FALSE);
+	CheckMenuItem(sysMenu, IDM_SYS_HIDE_MINIMIZE, hideOnMinimize ? MF_CHECKED : MF_UNCHECKED);
+
+	LONG style = GetWindowLongW(hwnd, GWL_STYLE);
+	if (hideOnMinimize && (style & WS_MINIMIZE)) {
+		ShowWindow(hwnd, SW_HIDE);
+	} else if (!hideOnMinimize && !(style & WS_VISIBLE)) {
+		ShowWindow(hwnd, SW_SHOWNORMAL);
+	}
+}
+
 void RpiqError(HWND hwnd) {
 #ifndef _DEBUG
 	MessageBoxW(hwnd,
 		L"Got a board revision of zero.\n\n"
-		L"PiMon is designed for Windows on Raspberry Pis only.\n"
+		PIMON_APPNAME L" is designed for Windows on Raspberry Pis only.\n"
 		L"It will not work on generic Windows PCs.\n\n"
 		L"If you are running on a Raspberry Pi, \n"
 		L"the RPIQ driver might not be working properly.\n\n"
@@ -96,6 +117,14 @@ void RpiqError(HWND hwnd) {
 		L"https://github.com/driver1998/bsp/releases.",
 		L"RPIQ driver issue", MB_OK | MB_ICONERROR);
 #endif
+}
+
+void LoadConfig(HWND hwnd) {
+	int _alwaysOnTop = ConfigGetInt(PIMON_APPNAME, CONFIG_ALWAYS_ON_TOP, 0);
+	AlwaysOnTop(hwnd, _alwaysOnTop);
+
+	int _hideOnMinimize = ConfigGetInt(PIMON_APPNAME, CONFIG_HIDE_ON_MINIMIZE, 0);
+	HideOnMinimize(hwnd, _hideOnMinimize);
 }
 
 void GetInfo(HWND hwnd) {
@@ -264,6 +293,7 @@ void OnCreate(HWND hwnd, CREATESTRUCTW* c) {
 	HMENU menu = GetSystemMenu(hwnd, FALSE);
 	AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
 	AppendMenuW(menu, MF_STRING, IDM_SYS_ALWAYS_TOP, L"Always on &Top");
+	AppendMenuW(menu, MF_STRING, IDM_SYS_HIDE_MINIMIZE, L"&Hide on Minimize");
 	AppendMenuW(menu, MF_STRING, IDM_SYS_ABOUT, L"&About...");
 
 	InitListView(hwnd);
@@ -273,7 +303,12 @@ void OnCreate(HWND hwnd, CREATESTRUCTW* c) {
 	SetTimer(hwnd, TIMER_ID, 1000, NULL);
 }
 
-void OnResize(HWND hwnd, WORD client_width, WORD client_height) {
+void OnResize(HWND hwnd, WPARAM wParam, WORD client_width, WORD client_height) {
+	if (hideOnMinimize && wParam == SIZE_MINIMIZED) {
+		ShowWindow(hwnd, SW_HIDE);
+		return;
+	}
+
 	UINT dpi = GetDpiForWindow(hwnd);
 	MoveWindow(hwndListView, 0, 0, client_width, client_height, TRUE);
 
@@ -295,7 +330,8 @@ void InitTrayIcon(HWND hwnd) {
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
-	if (uMsg == WM_TASKBAR_RESTART) {
+	// Explorer restarted, add tray icon again
+	if (uMsg == WM_TASKBAR_CREATE) {
 		InitTrayIcon(hwnd);
 	}
 	
@@ -303,8 +339,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	case WM_CREATE:
 		OnCreate(hwnd, (CREATESTRUCTW*)lParam);
 		break;
-	case WM_SIZE: 
-		OnResize(hwnd, LOWORD(lParam), HIWORD(lParam));
+	case WM_SIZE:
+		OnResize(hwnd, wParam, LOWORD(lParam), HIWORD(lParam));
 		break;
 	case WM_DPICHANGED:
 		OnDpiChanged(hwnd, HIWORD(wParam), (RECT*)lParam);
@@ -321,20 +357,24 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 				About(hwnd);
 				break;
 			case IDM_ALWAYS_TOP:
-				AlwaysOnTop(hwnd);
+				AlwaysOnTop(hwnd, !alwaysOnTop);
+				break;
+			case IDM_HIDE_MINIMIZE:
+				HideOnMinimize(hwnd, !hideOnMinimize);
 				break;
 			case IDM_EXIT:
 				SendMessageW(hwnd, WM_CLOSE, 0, 0);
 				break;
 			}
 		}
+		break;
 	case WM_TRAYICON:
 		switch (lParam) {
 		case WM_LBUTTONDBLCLK: {
 			SetForegroundWindow(hwnd);
 			LONG style = GetWindowLongW(hwnd, GWL_STYLE);
-			if (style & WS_MINIMIZE)
-				ShowWindow(hwnd, SW_RESTORE);
+			if (style & WS_MINIMIZE || !(style & WS_VISIBLE))
+				ShowWindow(hwnd, SW_SHOWNORMAL);
 			break;
 		}	
 		case WM_RBUTTONUP: {
@@ -343,7 +383,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 			HMENU menu = LoadMenuW(hInstance, MAKEINTRESOURCE(IDM_TRAY));
 			HMENU subMenu = GetSubMenu(menu, 0);
+
 			CheckMenuItem(subMenu, IDM_ALWAYS_TOP, alwaysOnTop ? MF_CHECKED : MF_UNCHECKED);
+			CheckMenuItem(subMenu, IDM_HIDE_MINIMIZE, hideOnMinimize ? MF_CHECKED : MF_UNCHECKED);
 
 			SetForegroundWindow(hwnd);
 			TrackPopupMenu(subMenu, TPM_BOTTOMALIGN, p.x, p.y, 0, hwnd, NULL);
@@ -358,7 +400,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			About(hwnd);
 			break;
 		case IDM_SYS_ALWAYS_TOP:
-			AlwaysOnTop(hwnd);
+			AlwaysOnTop(hwnd, !alwaysOnTop);
+			break;
+		case IDM_SYS_HIDE_MINIMIZE:
+			HideOnMinimize(hwnd, !hideOnMinimize);
 			break;
 		}
 		break;
@@ -385,7 +430,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 	HWND hwnd = CreateWindowExW(
 		0,
 		WNDCLASS_NAME,
-		L"PiMon",
+		PIMON_APPNAME,
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
 		NULL, 
@@ -398,8 +443,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 	ShowWindow(hwnd, nCmdShow);
 	InitTrayIcon(hwnd);
-	WM_TASKBAR_RESTART = RegisterWindowMessageW(L"TaskbarCreated");
-	
+	LoadConfig(hwnd);
+
+	// Register the Explorer restart message
+	WM_TASKBAR_CREATE = RegisterWindowMessageW(L"TaskbarCreated");
 	
 	MSG msg = { 0 };
 	while (GetMessageW(&msg, NULL, 0, 0)) {
