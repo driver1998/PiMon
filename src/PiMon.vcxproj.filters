@@ -21,12 +21,42 @@
     <ClInclude Include="mailbox.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="listview.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="reg.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tray.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="utils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="version.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="tray.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="reg.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="mailbox.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="listview.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

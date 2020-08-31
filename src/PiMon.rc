@@ -1,11 +1,24 @@
 
 #include <windows.h>
+#include "resource.h"
+#include "version.h"
 
-10 ICON DISCARDABLE "icon.ico"
+IDI_MAIN ICON "icon.ico"
+
+IDM_TRAY MENU
+BEGIN
+    POPUP "TRAY_POPUP"
+    BEGIN
+        MENUITEM "Always on &Top", IDM_ALWAYS_TOP
+        MENUITEM "&About..."     , IDM_ABOUT
+        MENUITEM SEPARATOR
+        MENUITEM "&Exit"         , IDM_EXIT
+    END
+END
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION    1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION    PIMON_FILE_VERSION
+PRODUCTVERSION PIMON_FILE_VERSION
 FILEOS         VOS_NT
 FILESUBTYPE    VFT2_UNKNOWN
 FILETYPE       VFT_APP
@@ -16,12 +29,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "driver1998\0"
             VALUE "FileDescription", "PiMon\0"
-            VALUE "FileVersion", "1.0\0"
+            VALUE "FileVersion", PIMON_VERSION "\0"
             VALUE "InternalName", "PiMon\0"
-            VALUE "LegalCopyright", "Copyright (c) 2020 driver1998\0"
+            VALUE "LegalCopyright", "Copyright (c) driver1998\0"
             VALUE "OriginalFilename", "PiMon.exe\0"
             VALUE "ProductName", "PiMon\0"
-            VALUE "ProductVersion", "1.0\0"
+            VALUE "ProductVersion", PIMON_VERSION "\0"
         END
     END
     BLOCK "VarFileInfo"
