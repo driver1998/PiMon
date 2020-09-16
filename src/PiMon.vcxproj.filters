@@ -18,13 +18,7 @@
     <ClInclude Include="rpiq.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="mailbox.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="listview.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="reg.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="tray.h">
@@ -39,6 +33,12 @@
     <ClInclude Include="version.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="data.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="setting.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.c">
@@ -50,13 +50,13 @@
     <ClCompile Include="utils.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="reg.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="mailbox.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="listview.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="data.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="setting.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -66,13 +66,13 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Manifest Include="PiMon.exe.manifest">
-      <Filter>资源文件</Filter>
-    </Manifest>
-  </ItemGroup>
-  <ItemGroup>
     <Image Include="icon.ico">
       <Filter>资源文件</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="PiMon.exe.manifest">
+      <Filter>资源文件</Filter>
+    </Manifest>
   </ItemGroup>
 </Project>

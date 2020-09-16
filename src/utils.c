@@ -1,4 +1,6 @@
 #include <windows.h>
+
+#include <strsafe.h>
 #include <PathCch.h>
 #include "utils.h"
 #include "version.h"
@@ -27,6 +29,44 @@ void MoveWindowToCenterOfScreen(HWND hwnd) {
 	SetWindowPos(hwnd, NULL, x, y, 0, 0, SWP_NOSIZE);
 }
 
+wchar_t* RegQueryString(HKEY hKey, LPCWSTR subKey, LPCWSTR valueName) {
+	HKEY hSubKey;
+	DWORD size = 0;
+	DWORD type = REG_SZ;
+
+	LSTATUS status = RegOpenKeyExW(hKey, subKey, 0, KEY_READ | KEY_WOW64_64KEY, &hSubKey);
+	if (status != ERROR_SUCCESS) return NULL;
+
+	RegQueryValueExW(hSubKey, valueName, NULL, &type, NULL, &size);
+	wchar_t* str = (wchar_t*)malloc(size);
+
+	status = RegQueryValueExW(hSubKey, valueName, NULL, &type, (LPBYTE)str, &size);
+	if (status != ERROR_SUCCESS) {
+		free(str);
+		str = NULL;
+	}
+
+	RegCloseKey(hSubKey);
+	return str;
+}
+
+DWORD RegQueryDword(HKEY hKey, LPCWSTR subKey, LPCWSTR valueName) {
+	HKEY hSubKey;
+	DWORD type = REG_DWORD;
+
+	LSTATUS status = RegOpenKeyExW(hKey, subKey, 0, KEY_READ | KEY_WOW64_64KEY, &hSubKey);
+	if (status != ERROR_SUCCESS) return 0;
+
+	DWORD value = 0;
+	DWORD size = sizeof(DWORD);
+
+	status = RegQueryValueExW(hSubKey, valueName, NULL, &type, (LPBYTE)&value, &size);
+	if (status != ERROR_SUCCESS) value = 0;
+
+	RegCloseKey(hSubKey);
+	return value;
+}
+
 int PrettyPrintUnits(double* value, const wchar_t** units, int unit_count, double unit_step) {
 	int unit_index = 0;
 	while (*value >= unit_step && unit_index < (unit_count - 1)) {
@@ -34,26 +74,4 @@ int PrettyPrintUnits(double* value, const wchar_t** units, int unit_count, doubl
 		unit_index++;
 	}
 	return unit_index;
-}
-
-int ConfigGetInt(const wchar_t* section, const wchar_t* key, int default_value) {
-	wchar_t exeDir[MAX_PATH] = { 0 };
-	wchar_t configPath[MAX_PATH] = { 0 };
-	GetExecutableDirectory(exeDir, MAX_PATH);
-	PathCchCombine(configPath, MAX_PATH, exeDir, PIMON_APPNAME L".ini");
-	return GetPrivateProfileIntW(section, key, default_value, configPath);
-}
-
-BOOL ConfigSetInt(const wchar_t* section, const wchar_t* key, int value) {
-	wchar_t exeDir[MAX_PATH] = { 0 };
-	wchar_t configPath[MAX_PATH] = { 0 };
-	GetExecutableDirectory(exeDir, MAX_PATH);
-	PathCchCombine(configPath, MAX_PATH, exeDir, PIMON_APPNAME L".ini");
-	return WritePrivateProfileStringW(section, key, value ? L"1" : L"0", configPath);
-}
-
-void GetExecutableDirectory(wchar_t* path, DWORD size) {
-	if (!path) return;
-	DWORD length = GetModuleFileNameW(NULL, path, size);
-	PathCchRemoveFileSpec(path, size);
 }

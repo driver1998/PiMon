@@ -2,7 +2,6 @@
 #define LISTVIEW_H
 
 #include <windows.h>
-#include <CommCtrl.h>
 
 void LVAddColumn(HWND hwnd, int pos, const wchar_t* header, int width);
 void LVSetColumnWidth(HWND hwnd, int iCol, int width);

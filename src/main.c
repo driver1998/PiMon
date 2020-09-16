@@ -2,108 +2,69 @@
 #include <windows.h>
 #include <strsafe.h>
 #include <commctrl.h>
+#include <ShlObj.h>
 #include <time.h>
 #include <math.h>
 #include <stdint.h>
 
 #include "resource.h"
 #include "version.h"
-#include "mailbox.h"
-#include "reg.h"
+#include "data.h"
 #include "tray.h"
 #include "listview.h"
 #include "utils.h"
+#include "setting.h"
 
-HWND hwndListView;
-BOOL alwaysOnTop = FALSE;
-BOOL hideOnMinimize = FALSE;
+static HWND hwndListView;
 
 #define WNDCLASS_NAME L"HWMON_WNDCLASS"
 #define TRAYICON_ID 3683
 #define TIMER_ID    4074
 
-#define CONFIG_ALWAYS_ON_TOP    L"AlwaysOnTop"
-#define CONFIG_HIDE_ON_MINIMIZE L"HideOnMinimize"
-
 #define WM_TRAYICON (WM_USER + 101)
 UINT WM_TASKBAR_CREATE;
 
-typedef struct itemInfo {
+typedef struct {
 	const wchar_t* name;
 	int id;
+	ULONG data;
 } ItemInfo;
 
 #define GROUP_INFO 1
 #define ITEMS_INFO 5
-ItemInfo infoItems[ITEMS_INFO] = {
+static ItemInfo infoItems[ITEMS_INFO] = {
 	{ L"Model" }, { L"Processor" },  { L"Memory" }, 
 	{ L"Revision" }, { L"Serial Number" }
 };
 
 #define GROUP_SOFT 2
 #define ITEMS_SOFT 3
-ItemInfo softItems[ITEMS_SOFT] = {
+static ItemInfo softItems[ITEMS_SOFT] = {
 	{L"Windows"}, { L"VC Firmware" }, { L"UEFI Firmware" }
 };
 
 #define GROUP_TEMP 3
 #define ITEMS_TEMP 1
-ItemInfo tempItems[ITEMS_TEMP] = {
+static ItemInfo tempItems[ITEMS_TEMP] = {
 	{ L"System" }
 };
-ULONG tempData[ITEMS_TEMP] = { 0 };
 
 #define GROUP_CLKS 4
-#define ITEMS_CLKS 10
-ItemInfo clockItems[ITEMS_CLKS] = {
+#define ITEMS_CLKS 14
+static ItemInfo clockItems[ITEMS_CLKS] = {
 	{ L"EMMC" }, { L"UART" }, { L"ARM" }, { L"CORE" }, { L"V3D" },
-	{ L"H264" }, { L"ISP" }, { L"SDRAM" }, { L"PIXEL" }, { L"PWM" }
+	{ L"H264" }, { L"ISP" }, { L"SDRAM" }, { L"PIXEL" }, { L"PWM" },
+	{ L"HEVC" }, { L"EMMC2" }, { L"M2MC" }, { L"PIXEL_BVB" }
 };
-ULONG clockData[ITEMS_CLKS] = { 0 };
 
 #define GROUP_VOLT 5
 #define ITEMS_VOLT 4
-ItemInfo voltItems[ITEMS_VOLT] = {
+static ItemInfo voltItems[ITEMS_VOLT] = {
 	{ L"CORE" }, { L"SDRAM C" }, { L"SDRAM P" }, { L"SDRAM I" }
 };
-ULONG voltData[ITEMS_VOLT] = { 0 };
 
-const wchar_t* mem_units[] = { L"MB", L"GB" };
-const wchar_t* clk_units[] = { L"Hz", L"MHz", L"GHz" };
-
-void About(HWND hwnd) {
-	MessageBoxW(hwnd,
-		PIMON_APPNAME L" Version " PIMON_VERSION L"\n"
-		L"Copyright (c) driver1998\n\n"
-		L"GitHub: https://github.com/driver1998/PiMon \n"
-		L"Release under the MIT License",
-		L"About", MB_ICONINFORMATION | MB_OK);
-}
-
-void AlwaysOnTop(HWND hwnd, BOOL value) {
-	alwaysOnTop = value;
-	ConfigSetInt(PIMON_APPNAME, CONFIG_ALWAYS_ON_TOP, alwaysOnTop);
-
-	HMENU sysMenu = GetSystemMenu(hwnd, FALSE);
-	CheckMenuItem(sysMenu, IDM_SYS_ALWAYS_TOP, alwaysOnTop ? MF_CHECKED : MF_UNCHECKED);
-
-	SetWindowPos(hwnd, alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
-}
-
-void HideOnMinimize(HWND hwnd, BOOL value) {
-	hideOnMinimize = value;
-	ConfigSetInt(PIMON_APPNAME, CONFIG_HIDE_ON_MINIMIZE, hideOnMinimize);
-	
-	HMENU sysMenu = GetSystemMenu(hwnd, FALSE);
-	CheckMenuItem(sysMenu, IDM_SYS_HIDE_MINIMIZE, hideOnMinimize ? MF_CHECKED : MF_UNCHECKED);
-
-	LONG style = GetWindowLongW(hwnd, GWL_STYLE);
-	if (hideOnMinimize && (style & WS_MINIMIZE)) {
-		ShowWindow(hwnd, SW_HIDE);
-	} else if (!hideOnMinimize && !(style & WS_VISIBLE)) {
-		ShowWindow(hwnd, SW_SHOWNORMAL);
-	}
-}
+static const wchar_t* mem_units[] = { L"MB", L"GB" };
+static const wchar_t* clk_units[] = { L"Hz", L"MHz", L"GHz" };
 
 void RpiqError(HWND hwnd) {
 #ifndef _DEBUG
@@ -119,12 +80,13 @@ void RpiqError(HWND hwnd) {
 #endif
 }
 
-void LoadConfig(HWND hwnd) {
-	int _alwaysOnTop = ConfigGetInt(PIMON_APPNAME, CONFIG_ALWAYS_ON_TOP, 0);
-	AlwaysOnTop(hwnd, _alwaysOnTop);
-
-	int _hideOnMinimize = ConfigGetInt(PIMON_APPNAME, CONFIG_HIDE_ON_MINIMIZE, 0);
-	HideOnMinimize(hwnd, _hideOnMinimize);
+void RestartAsAdmin(int nCmdShow) {
+	if (!IsUserAnAdmin()) {
+		wchar_t path[MAX_PATH];
+		GetModuleFileNameW(NULL, path, MAX_PATH);
+		ShellExecuteW(NULL, L"runas", path, NULL, NULL, nCmdShow);
+		PostQuitMessage(0);
+	}
 }
 
 void GetInfo(HWND hwnd) {
@@ -178,17 +140,27 @@ void GetInfo(HWND hwnd) {
 	free(biosVersion);
 }
 
-void UpdateData(HWND hwnd) {
+void UpdateData(HWND hwnd, BOOL force) {
 	wchar_t str[20];
 
 	// Temperature
 	{
-		ULONG value = GetTemperature();
-		if (value != tempData[0]) {
-			tempData[0] = value;
-			double temp = value / 1000.0;
+		ULONG value;
+		if (acpiThermal)
+			value = GetTemperatureWmi();
+		else
+			value = GetTemperature();
 
-			HICON icon = DrawTrayIcon(hwnd, RGB(128, 0, 0), RGB(255, 255, 255), temp);
+		if (value != tempItems[0].data || force) {
+			tempItems[0].data = value;
+
+			double temp;
+			if (acpiThermal)
+				temp = value / 10.0 - 273.15;
+			else
+				temp = value / 1000.0;
+
+			HICON icon = DrawTrayIcon(hwnd, trayBackground, trayForeground, temp);
 			StringCbPrintfW(str, sizeof(str), L"Temperature: %.3lg \u2103", temp);
 			UpdateTrayIcon(hwnd, TRAYICON_ID, icon, str);
 			DestroyIcon(icon);
@@ -201,8 +173,8 @@ void UpdateData(HWND hwnd) {
 	// Clocks
 	for (ULONG i = 0; i < ITEMS_CLKS; i++) {
 		ULONG value = GetClock(i + 1);
-		if (value != clockData[i]) {
-			clockData[i] = value;
+		if (value != clockItems[i].data || force) {
+			clockItems[i].data = value;
 			double clock = value / 1000.0;
 			int u = PrettyPrintUnits(&clock, clk_units, sizeof(clk_units) / sizeof(wchar_t*), 1000.0);
 
@@ -214,13 +186,55 @@ void UpdateData(HWND hwnd) {
 	// Voltages
 	for (ULONG i = 0; i < ITEMS_VOLT; i++) {
 		ULONG value = GetVoltage(i + 1);
-		if (value != voltData[i]) {
-			voltData[i] = value;
+		if (value != voltItems[i].data || force) {
+			voltItems[i].data = value;
 			double voltage = (value / 1000000.0) * 0.025 + 1.2;
 
 			StringCbPrintfW(str, sizeof(str), L"%.3lg V", voltage);
 			LVSetItemText(hwndListView, voltItems[i].id, 1, str);
 		}
+	}
+}
+
+void About(HWND hwnd) {
+	MessageBoxW(hwnd,
+		PIMON_APPNAME L" Version " PIMON_VERSION L"\n"
+		L"Copyright (c) driver1998\n\n"
+		L"GitHub: https://github.com/driver1998/PiMon \n"
+		L"Release under the MIT License",
+		L"About", MB_ICONINFORMATION | MB_OK);
+}
+
+void SettingsDialog(HWND hwnd) {
+	HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
+	DialogBoxW(hInstance, MAKEINTRESOURCEW(IDD_CONFIG), hwnd, (DLGPROC)SettingsDialogProc);
+	if (acpiThermal) RestartAsAdmin(SW_SHOWNORMAL);
+	UpdateData(hwnd, TRUE);
+}
+
+void AlwaysOnTop(HWND hwnd, BOOL value) {
+	alwaysOnTop = value;
+	ConfigSetInt(PIMON_APPNAME, CONFIG_ALWAYS_ON_TOP, alwaysOnTop);
+
+	HMENU menu = GetSystemMenu(hwnd, FALSE);
+	CheckMenuItem(menu, IDM_SYS_ALWAYS_TOP, alwaysOnTop ? MF_CHECKED : MF_UNCHECKED);
+
+	SetWindowPos(hwnd, alwaysOnTop ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+}
+
+void HideOnMinimize(HWND hwnd, BOOL value) {
+	hideOnMinimize = value;
+	ConfigSetInt(PIMON_APPNAME, CONFIG_HIDE_ON_MINIMIZE, hideOnMinimize);
+
+	HMENU menu = GetSystemMenu(hwnd, FALSE);
+	CheckMenuItem(menu, IDM_SYS_HIDE_MINIMIZE, hideOnMinimize ? MF_CHECKED : MF_UNCHECKED);
+
+	LONG style = GetWindowLongW(hwnd, GWL_STYLE);
+	if (hideOnMinimize && (style & WS_MINIMIZE)) {
+		ShowWindow(hwnd, SW_HIDE);
+	}
+	else if (!hideOnMinimize && !(style & WS_VISIBLE)) {
+		ShowWindow(hwnd, SW_SHOWNORMAL);
 	}
 }
 
@@ -273,6 +287,24 @@ void InitListView(HWND hwnd) {
 	}
 }
 
+void InitTrayIcon(HWND hwnd) {
+	HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
+	HICON icon = LoadIconW(hInstance, MAKEINTRESOURCEW(10));
+	AddTrayIcon(hwnd, TRAYICON_ID, PIMON_APPNAME, icon, WM_TRAYICON);
+}
+
+void InitSysMenu(HWND hwnd) {
+	HMENU menu = GetSystemMenu(hwnd, FALSE);
+	AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+	AppendMenuW(menu, MF_STRING, IDM_SYS_ALWAYS_TOP, L"Always on &Top");
+	AppendMenuW(menu, MF_STRING, IDM_SYS_HIDE_MINIMIZE, L"&Hide on Minimize");
+	AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
+	AppendMenuW(menu, MF_STRING, IDM_SYS_SETTINGS, L"S&ettings...");
+	AppendMenuW(menu, MF_STRING, IDM_SYS_ABOUT, L"&About...");
+	CheckMenuItem(menu, IDM_SYS_ALWAYS_TOP, alwaysOnTop ? MF_CHECKED : MF_UNCHECKED);
+	CheckMenuItem(menu, IDM_SYS_HIDE_MINIMIZE, hideOnMinimize ? MF_CHECKED : MF_UNCHECKED);
+}
+
 void OnCreate(HWND hwnd, CREATESTRUCTW* c) {
 	ResizeWindowByClientArea(hwnd, 460, 590);
 	MoveWindowToCenterOfScreen(hwnd);
@@ -290,15 +322,12 @@ void OnCreate(HWND hwnd, CREATESTRUCTW* c) {
 		NULL
 	);
 
-	HMENU menu = GetSystemMenu(hwnd, FALSE);
-	AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-	AppendMenuW(menu, MF_STRING, IDM_SYS_ALWAYS_TOP, L"Always on &Top");
-	AppendMenuW(menu, MF_STRING, IDM_SYS_HIDE_MINIMIZE, L"&Hide on Minimize");
-	AppendMenuW(menu, MF_STRING, IDM_SYS_ABOUT, L"&About...");
-
+	InitTrayIcon(hwnd);
+	InitSysMenu(hwnd);
 	InitListView(hwnd);
+
 	GetInfo(hwnd);
-	UpdateData(hwnd);
+	UpdateData(hwnd, TRUE);
 
 	SetTimer(hwnd, TIMER_ID, 1000, NULL);
 }
@@ -322,17 +351,12 @@ void OnDpiChanged(HWND hwnd, WORD dpi, RECT* r) {
 	MoveWindow(hwnd, r->left, r->top, (r->right - r->left), (r->bottom - r->top), TRUE);
 }
 
-void InitTrayIcon(HWND hwnd) {
-	HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
-	HICON icon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_MAIN));
-	AddTrayIcon(hwnd, TRAYICON_ID, L"PiMon", icon, WM_TRAYICON);
-}
-
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 	// Explorer restarted, add tray icon again
 	if (uMsg == WM_TASKBAR_CREATE) {
 		InitTrayIcon(hwnd);
+		UpdateData(hwnd, TRUE);
 	}
 	
 	switch (uMsg) {
@@ -346,8 +370,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		OnDpiChanged(hwnd, HIWORD(wParam), (RECT*)lParam);
 		break;
 	case WM_CLOSE:
-		KillTimer(hwnd, TIMER_ID);
-		DeleteTrayIcon(hwnd, TRAYICON_ID);
 		PostQuitMessage(0);
 		break;
 	case WM_COMMAND:
@@ -355,6 +377,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 			switch (LOWORD(wParam)) {
 			case IDM_ABOUT:
 				About(hwnd);
+				break;
+			case IDM_SETTINGS:
+				SettingsDialog(hwnd);
 				break;
 			case IDM_ALWAYS_TOP:
 				AlwaysOnTop(hwnd, !alwaysOnTop);
@@ -399,6 +424,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		case IDM_SYS_ABOUT:
 			About(hwnd);
 			break;
+		case IDM_SYS_SETTINGS:
+			SettingsDialog(hwnd);
+			break;
 		case IDM_SYS_ALWAYS_TOP:
 			AlwaysOnTop(hwnd, !alwaysOnTop);
 			break;
@@ -408,7 +436,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 		}
 		break;
 	case WM_TIMER:
-		UpdateData(hwnd);
+		UpdateData(hwnd, FALSE);
 		break;
 	}
 
@@ -417,14 +445,29 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 _Use_decl_annotations_
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow) {
-	HICON icon = LoadIconW(hInstance, MAKEINTRESOURCEW(10));
+
+	LoadConfig();
+
+	// WMI requires administrator privileges...
+	if (acpiThermal) RestartAsAdmin(nCmdShow);
+
+	// Initialize COM for WMI
+	HRESULT hr;
+	hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	if (FAILED(hr)) return hr;
+	hr = CoInitializeSecurity(NULL, -1, NULL, NULL,
+		RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
+	if (FAILED(hr)) return hr;
+
+	// Register the Explorer restart message
+	WM_TASKBAR_CREATE = RegisterWindowMessageW(L"TaskbarCreated");
 
 	WNDCLASS wc = { 0 };
 	wc.lpfnWndProc = WndProc;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = WNDCLASS_NAME;
 	wc.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	wc.hIcon = icon;
+	wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_MAIN));
 	RegisterClassW(&wc);
 
 	HWND hwnd = CreateWindowExW(
@@ -438,16 +481,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		hInstance,
 		NULL
 	);
-
 	if (hwnd == NULL) return -1;
 
 	ShowWindow(hwnd, nCmdShow);
-	InitTrayIcon(hwnd);
-	LoadConfig(hwnd);
 
-	// Register the Explorer restart message
-	WM_TASKBAR_CREATE = RegisterWindowMessageW(L"TaskbarCreated");
-	
 	MSG msg = { 0 };
 	while (GetMessageW(&msg, NULL, 0, 0)) {
 		if (!IsDialogMessageW(hwnd, &msg)) {
@@ -456,5 +493,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		}
 	}
 
+	KillTimer(hwnd, TIMER_ID);
+	DeleteTrayIcon(hwnd, TRAYICON_ID);
+	CoUninitialize();
 	return 0;
 }
