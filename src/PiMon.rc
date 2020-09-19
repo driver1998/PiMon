@@ -51,7 +51,7 @@ BEGIN
     DEFPUSHBUTTON   "&OK", IDOK, 105, 130, 50, 15
     PUSHBUTTON      "&Cancel", IDCANCEL, 160, 130, 50, 15
     GROUPBOX        "Data Source", IDC_STATIC, 10, 10, 200, 35
-    CONTROL         "Use ACPI Thermal Zone for temperature\n (Admin Required)", IDC_ACPI_THERMAL, "Button", BS_AUTOCHECKBOX | WS_TABSTOP | BS_MULTILINE, 20, 20, 180, 20
+    CONTROL         "Use ACPI Thermal Zone for temperature", IDC_ACPI_THERMAL, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 20, 180, 20
     GROUPBOX        "Tray Icon Temperature Meter", IDC_STATIC, 10, 55, 200, 65
     CTEXT           "Preview", IDC_PREVIEW, 20, 70, 72, 12, SS_CENTERIMAGE
     PUSHBUTTON      "&Foreground", IDC_FOREGROUND, 20, 85, 72, 12

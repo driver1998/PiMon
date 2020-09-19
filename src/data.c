@@ -1,9 +1,15 @@
 #include <windows.h>
 #include <strsafe.h>
-#include <wbemidl.h>
+#include <pdh.h>
 #include "rpiq.h"
 #include "utils.h"
 #include "data.h"
+
+#ifdef _DEBUG
+#define DEBUGLOG(x, ...) wprintf(x, __VA_ARGS__)
+#else
+#define DEBUGLOG(x, ...)
+#endif
 
 static const wchar_t* RpiProcessorName[] = {
     [CPU_UNKNOWN] = L"Unknown",
@@ -272,65 +278,60 @@ wchar_t* GetWindowsVersion() {
 }
 
 
-ULONG GetTemperatureWmi() {
-    HRESULT hr;
-    ULONG value = 0;
+ULONG GetTemperatureAcpi() {
+    LONGLONG value = 0;
+    ULONG status;
 
-    // Obtain the initial locator to WMI
-    IWbemLocator* locator = NULL;
-    hr = CoCreateInstance(&CLSID_WbemLocator, 0,
-        CLSCTX_INPROC_SERVER, &IID_IWbemLocator, (LPVOID*)&locator);
-    if (FAILED(hr)) goto err0;
-
-    // Connect to WMI through the IWbemLocator::ConnectServer method
-    BSTR ns = SysAllocString(L"ROOT\\WMI");
-    IWbemServices* services = NULL;
-    hr = locator->lpVtbl->ConnectServer(locator, ns, NULL, NULL, NULL, 0, NULL, NULL, &services);
-    if (FAILED(hr)) goto err1;
-
-    // Set security levels on the proxy
-    hr = CoSetProxyBlanket((IUnknown*)services, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL,
-        RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE);
-    if (FAILED(hr)) goto err2;
-
-    // Start the WMI query
-    BSTR lang = SysAllocString(L"WQL");
-    BSTR query = SysAllocString(L"SELECT CurrentTemperature FROM MSAcpi_ThermalZoneTemperature WHERE Active=True");
-    IEnumWbemClassObject* enumerator = NULL;
-    hr = services->lpVtbl->ExecQuery(services, lang, query, WBEM_FLAG_BIDIRECTIONAL, NULL, &enumerator);
-    if (FAILED(hr)) goto err3;
-
-    // Get the data from the query
-    IWbemClassObject* obj = NULL;
-    ULONG ret = 0;
-    if (enumerator) {
-
-        // Raspberry Pi only have one thermal zone
-        hr = enumerator->lpVtbl->Next(enumerator, WBEM_INFINITE, 1, &obj, &ret);
-
-        if (ret != 0) {
-            VARIANT temp;
-            obj->lpVtbl->Get(obj, L"CurrentTemperature", 0, &temp, NULL, NULL);
-            value = temp.ulVal;
-            VariantClear(&temp);
-
-            obj->lpVtbl->Release(obj);
-        }
-
-        enumerator->lpVtbl->Release(enumerator);
+    DWORD queryId = 0;
+    PDH_HQUERY hQuery = NULL;
+    status = PdhOpenQueryW(NULL, (DWORD_PTR)&queryId, &hQuery);
+    if (status != ERROR_SUCCESS) {
+        DEBUGLOG(L"PdhOpenQuery() Failed, status=%08x", status);
+        goto err0;
     }
 
-    // Cleanup
-err3:
-    if (lang) SysFreeString(lang);
-    if (query) SysFreeString(query);
+    DWORD size = 0;
+    wchar_t* pathList = NULL;
+    const wchar_t* wildcardPath = L"\\Thermal Zone Information(*)\\High Precision Temperature";
+    PdhExpandWildCardPathW(NULL, wildcardPath, pathList, &size, 0);
+    pathList = malloc(sizeof(wchar_t) * size);
+    if (pathList == NULL) goto err1;
+
+    PdhExpandWildCardPathW(NULL, wildcardPath, pathList, &size, 0);
+    if (status != ERROR_SUCCESS) {
+        DEBUGLOG(L"PdhExpandWildCardPath() Failed, status=%08x", status);
+        goto err2;
+    }
+
+    // Raspberry Pi only have one thermal zone
+    DWORD counterId = 0;
+    PDH_HCOUNTER hCounter = NULL;
+    const wchar_t* path = pathList;
+    status = PdhAddCounterW(hQuery, path, (DWORD_PTR)&counterId, &hCounter);
+    if (status != ERROR_SUCCESS) {
+        DEBUGLOG(L"PdhAddCounter() Failed, status=%08x", status);
+        goto err2;
+    }
+
+    status = PdhCollectQueryData(hQuery);
+    if (status != ERROR_SUCCESS) {
+        DEBUGLOG(L"PdhCollectQueryData() Failed, status=%08x", status);
+        goto err2;
+    }
+
+    PDH_RAW_COUNTER raw = { 0 };
+    DWORD type = PERF_COUNTER_RAWCOUNT;
+    status = PdhGetRawCounterValue(hCounter, NULL, &raw);
+    if (status != ERROR_SUCCESS) {
+        DEBUGLOG(L"PdhGetRawCounterValue() Failed, status=%08x", status);
+        goto err2;
+    }
+    value = raw.FirstValue;
+
 err2:
-    if (services)
-        services->lpVtbl->Release(services);
+    if (pathList != NULL) free(pathList);
 err1:
-    if (ns) SysFreeString(ns);
-    if (locator)
-        locator->lpVtbl->Release(locator);
+    if (hQuery != NULL) PdhCloseQuery(hQuery);
 err0:
-    return value;
+    return (ULONG)value;
 }

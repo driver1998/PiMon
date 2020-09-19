@@ -33,7 +33,7 @@ ULONG GetBoardRevision();
 ULONG GetVoltage(int voltageId);
 ULONG GetClock(int clockId);
 ULONG GetTemperature();
-ULONG GetTemperatureWmi();
+ULONG GetTemperatureAcpi();
 ULONG GetFirmwareRevision();
 ULONGLONG GetSerialNumber();
 ULONG GetWindowsMemory();
@@ -42,7 +42,6 @@ enum RpiProcessor GetProcessorType(ULONG BoardRevision);
 enum RpiModel GetPiModel(ULONG BoardRevision);
 const wchar_t* GetProcessorName(ULONG BoardRevision);
 const wchar_t* GetPiModelName(ULONG BoardRevision);
-
 
 // Free the string after use
 wchar_t* GetBiosVersion();

@@ -24,7 +24,6 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 	static HWND hwndPreview;
 	static HWND hwndAcpiThermal;
-	static HWND hwndOK;
 	static HBRUSH bkgBrush = NULL;
 
 	CHOOSECOLORW c = { 0 };
@@ -38,7 +37,6 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 		MoveWindowToCenterOfScreen(hwnd);
 		hwndPreview = GetDlgItem(hwnd, IDC_PREVIEW);
 		hwndAcpiThermal = GetDlgItem(hwnd, IDC_ACPI_THERMAL);
-		hwndOK = GetDlgItem(hwnd, IDOK);
 
 		tmpForeground = trayForeground;
 		tmpBackground = trayBackground;
@@ -46,10 +44,6 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 		bkgBrush = CreateSolidBrush(tmpBackground);
 
 		Button_SetCheck(hwndAcpiThermal, tmpAcpiThermal ? BST_CHECKED : BST_UNCHECKED);
-
-		if (GetProcessorType(GetBoardRevision()) != CPU_BCM2711)
-			Button_Enable(hwndAcpiThermal, FALSE);
-
 		return TRUE;
 	case WM_CTLCOLORSTATIC:
 		if ((HWND)lParam == hwndPreview) {
@@ -81,7 +75,6 @@ INT_PTR CALLBACK SettingsDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 			return TRUE;
 		case IDC_ACPI_THERMAL:
 			tmpAcpiThermal = (Button_GetCheck(hwndAcpiThermal) == BST_CHECKED);
-			Button_SetElevationRequiredState(hwndOK, tmpAcpiThermal && !acpiThermal && !IsUserAnAdmin());
 			return TRUE;
 		case IDOK:
 			trayForeground = tmpForeground;

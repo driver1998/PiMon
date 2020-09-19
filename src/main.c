@@ -80,15 +80,6 @@ void RpiqError(HWND hwnd) {
 #endif
 }
 
-void RestartAsAdmin(int nCmdShow) {
-	if (!IsUserAnAdmin()) {
-		wchar_t path[MAX_PATH];
-		GetModuleFileNameW(NULL, path, MAX_PATH);
-		ShellExecuteW(NULL, L"runas", path, NULL, NULL, nCmdShow);
-		PostQuitMessage(0);
-	}
-}
-
 void GetInfo(HWND hwnd) {
 	wchar_t str[200];
 	ULONG rev = GetBoardRevision();
@@ -145,21 +136,12 @@ void UpdateData(HWND hwnd, BOOL force) {
 
 	// Temperature
 	{
-		ULONG value;
-		if (acpiThermal)
-			value = GetTemperatureWmi();
-		else
-			value = GetTemperature();
-
+		ULONG value = acpiThermal ? GetTemperatureAcpi() : GetTemperature();
+		
 		if (value != tempItems[0].data || force) {
 			tempItems[0].data = value;
-
-			double temp;
-			if (acpiThermal)
-				temp = value / 10.0 - 273.15;
-			else
-				temp = value / 1000.0;
-
+			double temp = acpiThermal ? (value - 2732) / 10.0 : value / 1000.0;
+			
 			HICON icon = DrawTrayIcon(hwnd, trayBackground, trayForeground, temp);
 			StringCbPrintfW(str, sizeof(str), L"Temperature: %.3lg \u2103", temp);
 			UpdateTrayIcon(hwnd, TRAYICON_ID, icon, str);
@@ -208,7 +190,6 @@ void About(HWND hwnd) {
 void SettingsDialog(HWND hwnd) {
 	HINSTANCE hInstance = (HINSTANCE)GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
 	DialogBoxW(hInstance, MAKEINTRESOURCEW(IDD_CONFIG), hwnd, (DLGPROC)SettingsDialogProc);
-	if (acpiThermal) RestartAsAdmin(SW_SHOWNORMAL);
 	UpdateData(hwnd, TRUE);
 }
 
@@ -448,16 +429,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 	LoadConfig();
 
-	// WMI requires administrator privileges...
-	if (acpiThermal) RestartAsAdmin(nCmdShow);
-
-	// Initialize COM for WMI
-	HRESULT hr;
-	hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-	if (FAILED(hr)) return hr;
-	hr = CoInitializeSecurity(NULL, -1, NULL, NULL,
-		RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
-	if (FAILED(hr)) return hr;
+#ifdef _DEBUG
+	FILE* stream;
+	AllocConsole();
+	_wfreopen_s(&stream, L"CONOUT$", L"w", stdout);
+	wprintf(PIMON_APPNAME L" v" PIMON_VERSION L"\n");
+#endif
 
 	// Register the Explorer restart message
 	WM_TASKBAR_CREATE = RegisterWindowMessageW(L"TaskbarCreated");
@@ -495,6 +472,5 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 	KillTimer(hwnd, TIMER_ID);
 	DeleteTrayIcon(hwnd, TRAYICON_ID);
-	CoUninitialize();
 	return 0;
 }
