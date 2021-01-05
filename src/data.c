@@ -102,6 +102,28 @@ ULONG GetClock(int clockId) {
     return value;
 }
 
+ULONG GetMeasuredClock(int clockId) {
+    ULONG value = 0;
+
+    HANDLE hDevice = CreateFileW(
+        RPIQ_USERMODE_PATH, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, 0, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, 0
+    );
+    if (hDevice == INVALID_HANDLE_VALUE) return value;
+
+    DWORD bytesReturned;
+
+    MAILBOX_GET_MEASURED_CLOCK_RATE mailbox;
+    INIT_MAILBOX_GET_MEASURED_CLOCK_RATE(&mailbox, clockId);
+    BOOL status = DeviceIoControl(hDevice, IOCTL_MAILBOX_PROPERTY,
+        (LPVOID)(&mailbox), sizeof(mailbox),
+        (LPVOID)(&mailbox), sizeof(mailbox), &bytesReturned, 0);
+    if (status) value = mailbox.Rate;
+
+    CloseHandle(hDevice);
+    return value;
+}
+
 ULONG GetTemperature() {
     ULONG value = 0;
 

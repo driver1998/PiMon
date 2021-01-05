@@ -154,7 +154,7 @@ void UpdateData(HWND hwnd, BOOL force) {
 
 	// Clocks
 	for (ULONG i = 0; i < ITEMS_CLKS; i++) {
-		ULONG value = GetClock(i + 1);
+		ULONG value = GetMeasuredClock(i + 1);
 		if (value != clockItems[i].data || force) {
 			clockItems[i].data = value;
 			double clock = value / 1000.0;

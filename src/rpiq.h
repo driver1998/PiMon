@@ -398,6 +398,44 @@ __inline VOID INIT_MAILBOX_GET_CLOCK_RATE (
 }
 
 //
+// Get Measured Clock Rate
+//
+// Tag : 0x00030047
+//   Request :
+//    Length : 4
+//    Value :
+//    u32 : clock id
+//   Response :
+//    Length : 8
+//    Value :
+//    u32 : clock id
+//    u32 : rate (in Hz)
+//
+#define TAG_ID_GET_MEASURED_CLOCK_RATE  0x00030047
+
+typedef struct _MAILBOX_GET_MEASURED_CLOCK_RATE {
+    MAILBOX_HEADER Header;
+    ULONG ClockId;
+    ULONG Rate;
+    ULONG EndTag;
+} MAILBOX_GET_MEASURED_CLOCK_RATE, * PMAILBOX_GET_MEASURED_CLOCK_RATE;
+
+__inline VOID INIT_MAILBOX_GET_MEASURED_CLOCK_RATE(
+    _Out_ MAILBOX_GET_MEASURED_CLOCK_RATE* PropertyMsgPtr,
+    _In_ ULONG ClockId
+)
+{
+    PropertyMsgPtr->Header.TotalBuffer = sizeof(MAILBOX_GET_MEASURED_CLOCK_RATE);
+    PropertyMsgPtr->Header.RequestResponse = TAG_REQUEST;
+    PropertyMsgPtr->Header.TagID = TAG_ID_GET_MEASURED_CLOCK_RATE;
+    PropertyMsgPtr->Header.ResponseLength = 8;
+    PropertyMsgPtr->Header.Request = TAG_REQUEST;
+    PropertyMsgPtr->ClockId = ClockId;
+    PropertyMsgPtr->Rate = 0;
+    PropertyMsgPtr->EndTag = 0;
+}
+
+//
 // Set Clock Rate
 //
 // Tag : 0x00038002
