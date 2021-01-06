@@ -32,6 +32,7 @@ enum RpiModel {
 ULONG GetBoardRevision();
 ULONG GetVoltage(int voltageId);
 ULONG GetClock(int clockId);
+ULONG GetMeasuredClock(int clockId);
 ULONG GetTemperature();
 ULONG GetTemperatureAcpi();
 ULONG GetFirmwareRevision();
