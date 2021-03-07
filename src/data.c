@@ -33,7 +33,9 @@ static const wchar_t* RpiModelName[] = {
     [MODEL_3B_PLUS]  = L"Raspberry Pi 3 Model B+",
     [MODEL_3A_PLUS]  = L"Raspberry Pi 3 Model A+",
     [MODEL_CM3_PLUS] = L"Raspberry Pi Compute Module 3+",
-    [MODEL_4B]       = L"Raspberry Pi 4 Model B"
+    [MODEL_4B]       = L"Raspberry Pi 4 Model B",
+    [MODEL_PI400]    = L"Raspberry Pi 400",
+    [MODEL_UNKNOWN]  = L"Unknown Pi Model"
 };
 
 ULONG GetBoardRevision() {
@@ -262,6 +264,8 @@ enum RpiModel GetPiModel(ULONG BoardRevision)
         return MODEL_CM3_PLUS;
     case 0x11:
         return MODEL_4B;
+    case 0x13:
+        return MODEL_PI400;
     default:
         return MODEL_UNKNOWN;
     }

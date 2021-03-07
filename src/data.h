@@ -27,6 +27,7 @@ enum RpiModel {
 	MODEL_3A_PLUS  = 12,
 	MODEL_CM3_PLUS = 13,
 	MODEL_4B       = 14,
+        MODEL_PI400    = 15,
 };
 
 ULONG GetBoardRevision();
