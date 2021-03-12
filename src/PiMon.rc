@@ -83,7 +83,7 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "driver1998"
             VALUE "FileDescription", PIMON_APPNAME
-            VALUE "FileVersion", "1.0.6"
+            VALUE "FileVersion", PIMON_VERSION
             VALUE "InternalName", PIMON_APPNAME
             VALUE "LegalCopyright", "Copyright (c) driver1998"
             VALUE "OriginalFilename", PIMON_APPNAME ".exe"
