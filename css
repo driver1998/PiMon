@@ -1,0 +1,12 @@
+* {
+  background-color: orange;
+}
+
+h1 {
+  color: yellow;
+  size: 100px;
+}
+
+a:link {
+  font-size: 35;
+}
